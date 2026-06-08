@@ -23,8 +23,6 @@ jobs:
         run: |
           sudo ln -sf /usr/bin/make /usr/local/bin/gmake || true
           sudo ln -sf /usr/include/uuid/uuid.h /usr/include/uuid.h || true
-          autoconf --version
-          automake --version
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
@@ -36,21 +34,22 @@ jobs:
         run: |
           echo "ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/27.0.12077973" >> $GITHUB_ENV
           echo "ANDROID_NDK=$ANDROID_SDK_ROOT/ndk/27.0.12077973" >> $GITHUB_ENV
-    
-      - name: Patch libuuid for Android
-        run: |
-          git clone https://github.com/arthenica/util-linux src/libuuid || true
-          # Patch gen_uuid.c to remove flock dependency
-          find . -path "*/libuuid/gen_uuid.c" | head -5
-          for f in $(find . -path "*/libuuid/gen_uuid.c"); do
-            sed -i 's/while (flock(state_fd, LOCK_EX) < 0)/while (0)/g' "$f"
-            sed -i 's/flock(state_fd, LOCK_UN);//g' "$f"
-            echo "Patched $f"
-          done
-          
-      - name: Build FFmpeg Kit
+
+      - name: Download sources first
         run: |
           chmod +x android.sh
+          # Run with a fake flag to just trigger download then exit
+          timeout 120 ./android.sh --enable-gpl --enable-x264 2>/dev/null || true
+          # Now patch gen_uuid.c
+          find . -name "gen_uuid.c" -exec echo "Found: {}" \;
+          find . -name "gen_uuid.c" -exec sed -i 's/while (flock(state_fd, LOCK_EX) < 0)/while (0)/g' {} \;
+          find . -name "gen_uuid.c" -exec sed -i 's/flock(state_fd, LOCK_UN);//g' {} \;
+          find . -name "gen_uuid.c" -exec sed -i '/#include <sys\/file.h>/d' {} \;
+          echo "Patch complete"
+          grep -n "flock" $(find . -name "gen_uuid.c" | head -1) || echo "flock removed successfully"
+
+      - name: Build FFmpeg Kit
+        run: |
           ./android.sh \
             --enable-gpl \
             --enable-freetype \
@@ -60,7 +59,9 @@ jobs:
 
       - name: Show build log on failure
         if: failure()
-        run: tail -100 build.log
+        run: |
+          echo "=== LAST 100 LINES ==="
+          tail -100 build.log || echo "No build.log"
 
       - name: Find AAR
         run: find . -name "*.aar" 2>/dev/null
