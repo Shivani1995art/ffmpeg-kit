@@ -37,7 +37,7 @@ jobs:
           echo "ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/27.0.12077973" >> $GITHUB_ENV
           echo "ANDROID_NDK=$ANDROID_SDK_ROOT/ndk/27.0.12077973" >> $GITHUB_ENV
     
-    - name: Patch libuuid for Android
+      - name: Patch libuuid for Android
         run: |
           git clone https://github.com/arthenica/util-linux src/libuuid || true
           # Patch gen_uuid.c to remove flock dependency
