@@ -3,6 +3,9 @@ name: Build FFmpeg Kit Full GPL 16KB
 on:
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -15,7 +18,7 @@ jobs:
           sudo apt-get install -y autoconf automake libtool pkg-config \
             curl nasm groff texinfo yasm cmake ninja-build
 
-      - name: Setup Android NDK
+      - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
       - name: Install NDK 27
@@ -25,11 +28,6 @@ jobs:
         run: |
           echo "ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/27.0.12077973" >> $GITHUB_ENV
           echo "ANDROID_NDK=$ANDROID_SDK_ROOT/ndk/27.0.12077973" >> $GITHUB_ENV
-
-      - name: Patch for 16KB page size
-        run: |
-          sed -i 's/get_ldflags "${LIB_NAME}"/get_ldflags "${LIB_NAME}") -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384 #/g' scripts/function-android.sh || true
-          grep -rn "APP_LDFLAGS\|get_ldflags" scripts/function-android.sh | head -5
 
       - name: Build FFmpeg Kit
         run: |
