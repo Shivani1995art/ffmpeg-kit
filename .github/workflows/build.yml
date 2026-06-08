@@ -16,7 +16,14 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y autoconf automake libtool pkg-config \
-            curl nasm groff texinfo yasm cmake ninja-build
+            curl nasm groff texinfo yasm cmake ninja-build \
+            gettext gperf bison flex
+
+      - name: Fix libiconv build
+        run: |
+          sudo ln -sf /usr/bin/make /usr/local/bin/gmake || true
+          autoconf --version
+          automake --version
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
@@ -46,5 +53,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ffmpeg-kit-full-gpl-16kb
-          path: |
-            android/ffmpeg-kit-android-lib/build/outputs/aar/ffmpeg-kit-release.aar
+          path: android/ffmpeg-kit-android-lib/build/outputs/aar/ffmpeg-kit-release.aar
