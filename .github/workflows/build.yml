@@ -36,7 +36,18 @@ jobs:
         run: |
           echo "ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/27.0.12077973" >> $GITHUB_ENV
           echo "ANDROID_NDK=$ANDROID_SDK_ROOT/ndk/27.0.12077973" >> $GITHUB_ENV
-
+    
+    - name: Patch libuuid for Android
+        run: |
+          git clone https://github.com/arthenica/util-linux src/libuuid || true
+          # Patch gen_uuid.c to remove flock dependency
+          find . -path "*/libuuid/gen_uuid.c" | head -5
+          for f in $(find . -path "*/libuuid/gen_uuid.c"); do
+            sed -i 's/while (flock(state_fd, LOCK_EX) < 0)/while (0)/g' "$f"
+            sed -i 's/flock(state_fd, LOCK_UN);//g' "$f"
+            echo "Patched $f"
+          done
+          
       - name: Build FFmpeg Kit
         run: |
           chmod +x android.sh
