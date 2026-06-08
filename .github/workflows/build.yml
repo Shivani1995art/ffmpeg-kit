@@ -22,7 +22,25 @@ jobs:
       - name: Fix builds
         run: |
           sudo ln -sf /usr/bin/make /usr/local/bin/gmake || true
-          sudo ln -sf /usr/include/uuid/uuid.h /usr/include/uuid.h || true
+
+      - name: Patch libuuid build script
+        run: |
+          # Find the function that builds libuuid in the scripts
+          grep -n "libuuid\|build_libuuid" scripts/function-android.sh | head -20
+          grep -n "libuuid\|build_libuuid" scripts/main-android.sh | head -20
+          
+          # Patch the build function to add flock fix before make
+          # Find where libuuid make is called and add sed patch before it
+          SCRIPT="scripts/function-android.sh"
+          
+          # Add flock patch right before the make command in libuuid build
+          sed -i '/src\/libuuid.*make\|make.*libuuid\|cd.*libuuid.*&&.*make/i\
+          find . -name "gen_uuid.c" -exec sed -i "s|while (flock(state_fd, LOCK_EX) < 0)|while (0)|g" {} \\;\
+          find . -name "gen_uuid.c" -exec sed -i "s|flock(state_fd, LOCK_UN);||g" {} \\;' "$SCRIPT" || true
+
+          # Alternative: patch the libuuid source script directly
+          cat scripts/android/libuuid.sh | head -30 || echo "no libuuid.sh"
+          ls scripts/android/ | grep -i uuid || echo "no uuid script"
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
@@ -35,18 +53,43 @@ jobs:
           echo "ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/27.0.12077973" >> $GITHUB_ENV
           echo "ANDROID_NDK=$ANDROID_SDK_ROOT/ndk/27.0.12077973" >> $GITHUB_ENV
 
-      - name: Download sources first
+      - name: Download sources only
         run: |
           chmod +x android.sh
-          # Run with a fake flag to just trigger download then exit
-          timeout 120 ./android.sh --enable-gpl --enable-x264 2>/dev/null || true
-          # Now patch gen_uuid.c
-          find . -name "gen_uuid.c" -exec echo "Found: {}" \;
-          find . -name "gen_uuid.c" -exec sed -i 's/while (flock(state_fd, LOCK_EX) < 0)/while (0)/g' {} \;
-          find . -name "gen_uuid.c" -exec sed -i 's/flock(state_fd, LOCK_UN);//g' {} \;
-          find . -name "gen_uuid.c" -exec sed -i '/#include <sys\/file.h>/d' {} \;
-          echo "Patch complete"
-          grep -n "flock" $(find . -name "gen_uuid.c" | head -1) || echo "flock removed successfully"
+          # Only download sources, don't build yet
+          grep -n "Downloading sources\|download_sources\|clone\|git clone" scripts/main-android.sh | head -10
+          # Run just the download phase
+          bash -c '
+            export BASEDIR="$(pwd)"
+            export FFMPEG_KIT_BUILD_TYPE="android"
+            source "${BASEDIR}"/scripts/variable.sh
+            source "${BASEDIR}"/scripts/function-android.sh
+            enable_default_android_architectures
+            enable_default_android_libraries
+            enable_main_build
+            export GPL_ENABLED="yes"
+            library_enabled LIBRARY_LIBUUID && download_library_source libuuid
+          ' || true
+          
+          # Check if downloaded
+          ls src/ || echo "src not created"
+          find . -name "gen_uuid.c" 2>/dev/null
+
+      - name: Patch gen_uuid.c
+        run: |
+          FILES=$(find . -name "gen_uuid.c" 2>/dev/null)
+          if [ -z "$FILES" ]; then
+            echo "gen_uuid.c not found yet - will patch build script instead"
+            # Patch the libuuid build script to apply fix at compile time
+            cat scripts/android/libuuid.sh
+          else
+            for f in $FILES; do
+              echo "Patching $f"
+              sed -i 's/while (flock(state_fd, LOCK_EX) < 0)/while (0)/g' "$f"
+              sed -i 's/flock(state_fd, LOCK_UN);//g' "$f"
+              grep -n "flock" "$f" || echo "flock successfully removed from $f"
+            done
+          fi
 
       - name: Build FFmpeg Kit
         run: |
@@ -60,7 +103,6 @@ jobs:
       - name: Show build log on failure
         if: failure()
         run: |
-          echo "=== LAST 100 LINES ==="
           tail -100 build.log || echo "No build.log"
 
       - name: Find AAR
