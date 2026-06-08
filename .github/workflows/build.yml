@@ -7,7 +7,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Install dependencies
         run: |
@@ -39,17 +39,13 @@ jobs:
             --enable-freetype \
             --enable-fribidi \
             --enable-fontconfig \
-            --enable-x264 \
-            --disable-arm-v7a \
-            --disable-arm-v7a-neon \
-            --disable-x86 \
-            --disable-x86-64
+            --enable-x264
 
       - name: Find AAR
         run: find . -name "*.aar" 2>/dev/null
 
       - name: Upload AAR
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ffmpeg-kit-full-gpl-16kb
           path: |
