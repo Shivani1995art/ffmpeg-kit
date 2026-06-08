@@ -93,6 +93,22 @@ jobs:
 
       - name: Build FFmpeg Kit
         run: |
+          chmod +x android.sh
+          
+          # Step 1: Download sources only first
+          ./android.sh --enable-gpl 2>&1 | head -5 || true
+          
+          # Step 2: Patch gen_uuid.c immediately after download
+          find . -name "gen_uuid.c" 2>/dev/null
+          for f in $(find . -name "gen_uuid.c" 2>/dev/null); do
+            echo "Patching $f"
+            sed -i 's/while (flock(state_fd, LOCK_EX) < 0)/while (0)/g' "$f"
+            sed -i 's/flock(state_fd, LOCK_UN);//g' "$f"
+            echo "Done patching - verifying:"
+            grep -n "flock" "$f" || echo "SUCCESS: flock removed"
+          done
+          
+          # Step 3: Now run full build
           ./android.sh \
             --enable-gpl \
             --enable-freetype \
