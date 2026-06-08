@@ -11,22 +11,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
-    - name: Fix libuuid build
-        run: |
-          sudo apt-get install -y uuid-dev util-linux
-          sudo ln -sf /usr/include/uuid/uuid.h /usr/include/uuid.h || true
-          
+
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y autoconf automake libtool pkg-config \
             curl nasm groff texinfo yasm cmake ninja-build \
-            gettext gperf bison flex uuid-dev
+            gettext gperf bison flex uuid-dev util-linux
 
-      - name: Fix libiconv build
+      - name: Fix builds
         run: |
           sudo ln -sf /usr/bin/make /usr/local/bin/gmake || true
+          sudo ln -sf /usr/include/uuid/uuid.h /usr/include/uuid.h || true
           autoconf --version
           automake --version
 
@@ -51,9 +47,9 @@ jobs:
             --enable-fontconfig \
             --enable-x264
 
-     - name: Show build log on failure
+      - name: Show build log on failure
         if: failure()
-        run: tail -50 build.log
+        run: tail -100 build.log
 
       - name: Find AAR
         run: find . -name "*.aar" 2>/dev/null
