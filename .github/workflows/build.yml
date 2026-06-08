@@ -1,0 +1,56 @@
+name: Build FFmpeg Kit Full GPL 16KB
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y autoconf automake libtool pkg-config \
+            curl nasm groff texinfo yasm cmake ninja-build
+
+      - name: Setup Android NDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK 27
+        run: echo "y" | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "ndk;27.0.12077973"
+
+      - name: Set NDK env
+        run: |
+          echo "ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/27.0.12077973" >> $GITHUB_ENV
+          echo "ANDROID_NDK=$ANDROID_SDK_ROOT/ndk/27.0.12077973" >> $GITHUB_ENV
+
+      - name: Patch for 16KB page size
+        run: |
+          sed -i 's/get_ldflags "${LIB_NAME}"/get_ldflags "${LIB_NAME}") -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384 #/g' scripts/function-android.sh || true
+          grep -rn "APP_LDFLAGS\|get_ldflags" scripts/function-android.sh | head -5
+
+      - name: Build FFmpeg Kit
+        run: |
+          chmod +x android.sh
+          ./android.sh \
+            --enable-gpl \
+            --enable-freetype \
+            --enable-fribidi \
+            --enable-fontconfig \
+            --enable-x264 \
+            --disable-arm-v7a \
+            --disable-arm-v7a-neon \
+            --disable-x86 \
+            --disable-x86-64
+
+      - name: Find AAR
+        run: find . -name "*.aar" 2>/dev/null
+
+      - name: Upload AAR
+        uses: actions/upload-artifact@v3
+        with:
+          name: ffmpeg-kit-full-gpl-16kb
+          path: |
+            android/ffmpeg-kit-android-lib/build/outputs/aar/ffmpeg-kit-release.aar
